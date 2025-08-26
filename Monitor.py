@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-import os, re, hashlib, time, difflib, json, smtplib, socket, traceback
-from email.mime.text import MIMEText   # ← must be email.mime.text (dot), not email.mime_text
+import os, re, hashlib, time, difflib, json, socket, traceback
 from pathlib import Path
 import requests
 from bs4 import BeautifulSoup
@@ -34,9 +33,12 @@ def fetch_clean_text(url: str):
     r = requests.get(url, headers=headers, timeout=REQ_TIMEOUT)
     r.raise_for_status()
     html = r.text
-    soup = BeautifulSoup(html, "lxml")
+
+    # Use stdlib parser to avoid native deps
+    soup = BeautifulSoup(html, "html.parser")
     for tag in soup(["script", "style", "noscript"]):
         tag.extract()
+
     text = soup.get_text(separator="\n")
     text = re.sub(r"\s+\n", "\n", text)
     text = re.sub(r"\n{2,}", "\n\n", text).strip()
@@ -65,7 +67,8 @@ def unified_diff(old: str, new: str, url: str) -> str:
     return "\n".join(lines)
 
 def post_slack(msg: str):
-    if not SLACK_WEBHOOK_URL: 
+    if not SLACK_WEBHOOK_URL:
+        print("[warn] SLACK_WEBHOOK_URL not set; skipping Slack post.")
         return
     try:
         requests.post(SLACK_WEBHOOK_URL, data=json.dumps({"text": msg}), timeout=15)
@@ -82,11 +85,13 @@ def main():
         if not urls:
             print(f"No URLs found in {URLS_FILE}.")
             return
+
         for url in urls:
             key = url_key(url)
             try:
                 new_txt, new_raw = fetch_clean_text(url)
                 old_txt, _ = load_previous(key)
+
                 new_hash = hashlib.sha256(new_txt.encode("utf-8")).hexdigest()
                 old_hash = hashlib.sha256(old_txt.encode("utf-8")).hexdigest() if old_txt else None
 
@@ -100,8 +105,9 @@ def main():
                 save_current(key, new_txt, new_raw)
             except Exception as e:
                 print(f"[error] URL failed: {url}\n{e}\n{traceback.format_exc()}")
-    except Exception as e:
-        # If anything breaks before the loop, print full traceback so Actions shows it.
+
+    except Exception:
+        # Print full traceback so Actions shows the real reason (exit code 2 = crash)
         print("[fatal] monitor crashed:\n", traceback.format_exc())
         raise
 
