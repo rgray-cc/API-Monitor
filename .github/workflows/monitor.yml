@@ -2,8 +2,7 @@ name: Doc Monitor
 
 on:
   schedule:
-    # Runs daily at 8:05 AM Los Angeles time (15:05 UTC during PDT)
-    - cron: '5 15 * * *'
+    - cron: '5 15 * * *'   # daily 08:05 Los Angeles during PDT
   workflow_dispatch: {}
 
 jobs:
@@ -12,15 +11,6 @@ jobs:
     steps:
       - name: Check out
         uses: actions/checkout@v4
-
-      # Restore previous snapshots so we can detect changes across days
-      - name: Restore state cache
-        uses: actions/cache@v4
-        with:
-          path: state
-          key: doc-monitor-state-${{ github.run_id }}
-          restore-keys: |
-            doc-monitor-state-
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -32,16 +22,16 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Show environment and files
+        run: |
+          python -V
+          ls -la
+          echo "----- urls.txt -----"
+          cat urls.txt || true
+
       - name: Run monitor
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         run: |
+          set -euxo pipefail
           python monitor.py
-
-      # Save updated snapshots for the next run
-      - name: Save state cache
-        if: always()
-        uses: actions/cache/save@v4
-        with:
-          path: state
-          key: doc-monitor-state-${{ github.run_id }}
