@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 import os, re, hashlib, time, difflib, json, smtplib, socket
-from email.mime_text import MIMEText
+from email.mime.text import MIMEText
 from pathlib import Path
 from typing import Tuple, Optional
 import requests
